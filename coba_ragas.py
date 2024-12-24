@@ -274,7 +274,7 @@ st.set_page_config(page_title="Medical Chatbot", layout="wide")
 # Sidebar
 import streamlit as st
 
-st.sidebar.image("C:/Users/Arinzrnn/OneDrive - PT. Ataina Mazaya Indonesia/coba skripsi/gambar bot.jpg", width=150)
+st.sidebar.image("gambar bot.jpg", width=150)
 st.sidebar.title("Medical Chatbot")
 st.sidebar.write("Pilih fitur yang ingin dipakai")
 
