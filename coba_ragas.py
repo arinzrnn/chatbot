@@ -260,8 +260,8 @@ st.set_page_config(page_title="Medical Chatbot", layout="wide")
 import streamlit as st
 
 st.sidebar.image("gambar bot.jpg", width=150)
-st.sidebar.title("Medical Chatbot")
-st.sidebar.write("Pilih fitur yang ingin dipakai")
+st.sidebar.title("MediBot")
+st.sidebar.write("Selamat datang di MediBot (Medical Chatbot). Silahkan pilih fitur terlebih dahulu!")
 
 # Dropdown menu
 feature = st.sidebar.selectbox("Pilih fitur:", ["QnA", "Hitung Dosis", "Evaluation Metrics"])
