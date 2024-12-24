@@ -6,6 +6,7 @@ import streamlit as st
 import openai
 import typing as t
 import requests
+from PyPDF2 import PdfReader
 from dotenv import load_dotenv, find_dotenv
 from langchain_community.chat_models.openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
@@ -68,17 +69,31 @@ QA_CHAIN_PROMPT = PromptTemplate(input_variables=["context", "question"], templa
 
 # Function to load database from Excel
 def load_db(file, chain_type, k):
-    # Load the Excel file
-    xls = pd.ExcelFile(file)
-    sheets_data = {}
+    combined_text = ""
 
-    # Load all sheets and combine text
-    for sheet_name in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name)
-        sheets_data[sheet_name] = df.to_string()  # Convert each sheet to a string
+    if file.name.endswith(".xlsx"):
+        # Load the Excel file
+        xls = pd.ExcelFile(file)
+        sheets_data = {}
 
-    # Combine all sheet data into one document
-    combined_text = "\n".join(sheets_data.values())
+        # Load all sheets and combine text
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name)
+            sheets_data[sheet_name] = df.to_string()  # Convert each sheet to a string
+
+        # Combine all sheet data into one document
+        combined_text = "\n".join(sheets_data.values())
+
+    elif file.name.endswith(".pdf"):
+        # Load the PDF file
+        pdf_reader = PdfReader(file)
+        pdf_text = []
+        for page in pdf_reader.pages:
+            pdf_text.append(page.extract_text())
+        combined_text = "\n".join(pdf_text)
+
+    else:
+        raise ValueError("Unsupported file format. Please upload an Excel (.xlsx) or PDF (.pdf) file.")
 
     # Split the text for better retrieval
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
@@ -259,9 +274,9 @@ st.set_page_config(page_title="Medical Chatbot", layout="wide")
 # Sidebar
 import streamlit as st
 
-st.sidebar.image("gambar bot.jpg", width=150)
-st.sidebar.title("MediBot")
-st.sidebar.write("Selamat datang di MediBot (Medical Chatbot). Silahkan pilih fitur terlebih dahulu!")
+st.sidebar.image("C:/Users/Arinzrnn/OneDrive - PT. Ataina Mazaya Indonesia/coba skripsi/gambar bot.jpg", width=150)
+st.sidebar.title("Medical Chatbot")
+st.sidebar.write("Pilih fitur yang ingin dipakai")
 
 # Dropdown menu
 feature = st.sidebar.selectbox("Pilih fitur:", ["QnA", "Hitung Dosis", "Evaluation Metrics"])
@@ -279,33 +294,61 @@ if "evaluation_metrics" not in st.session_state:
 if feature == "QnA":
     st.subheader("Fitur QnA")
     st.sidebar.header("Upload Your Medical File")
-    uploaded_file = st.sidebar.file_uploader("Choose an Excel file", type=["xlsx"], key="file_uploader_qna")
+    uploaded_file = st.sidebar.file_uploader(
+        "Choose an Excel or PDF file", type=["xlsx", "pdf"], key="file_uploader_qna"
+    )
     user_query = st.chat_input("Masukkan pertanyaan:", key="chat_input_qna")
 
     if uploaded_file:
         st.session_state["uploaded_file"] = uploaded_file
+
         if st.session_state["qa_instance"] is None:
-            st.session_state["qa_instance"] = load_db(uploaded_file, "stuff", 4)
-            st.sidebar.success("Database loaded successfully!")
+            try:
+                # Load the database depending on the file type
+                st.session_state["qa_instance"] = load_db(uploaded_file, "stuff", 4)
+                st.sidebar.success("Database loaded successfully!")
+            except ValueError as e:
+                st.sidebar.error(str(e))
+            except Exception as e:
+                st.sidebar.error(f"Error loading file: {e}")
 
     if st.session_state["uploaded_file"] and st.session_state["qa_instance"]:
         if user_query:
-            chat_history = [(msg['role'], msg['content']) for msg in st.session_state["chat_history"]]
-            response = st.session_state["qa_instance"]({"question": user_query, "chat_history": chat_history})
+            # Process the query and maintain chat history
+            chat_history = [
+                (msg["role"], msg["content"])
+                for msg in st.session_state["chat_history"]
+            ]
+            response = st.session_state["qa_instance"](
+                {"question": user_query, "chat_history": chat_history}
+            )
 
-            st.session_state["chat_history"].append({"role": "user", "content": user_query})
-            st.session_state["chat_history"].append({"role": "assistant", "content": response["answer"]})
+            st.session_state["chat_history"].append(
+                {"role": "user", "content": user_query}
+            )
+            st.session_state["chat_history"].append(
+                {"role": "assistant", "content": response["answer"]}
+            )
 
             st.sidebar.write("Dokumen Sumber:")
-            sidebar_references = [doc.page_content for doc in response["source_documents"]]
+            sidebar_references = [
+                doc.page_content for doc in response["source_documents"]
+            ]
             for ref in sidebar_references:
                 st.sidebar.markdown(f"- {ref[:200]}...")
 
-            context = sidebar_references + [msg["content"] for msg in st.session_state["chat_history"] if msg["role"] == "user"]
+            context = sidebar_references + [
+                msg["content"]
+                for msg in st.session_state["chat_history"]
+                if msg["role"] == "user"
+            ]
             references = "\n".join(sidebar_references)
 
-            evaluate_response_with_ragas(references, context, response["answer"], user_query)
+            evaluate_response_with_ragas(
+                references, context, response["answer"], user_query
+            )
 
+    # Display chat history
     for message in st.session_state["chat_history"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
