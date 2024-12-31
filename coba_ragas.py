@@ -38,8 +38,10 @@ import asyncio
 _ = load_dotenv(find_dotenv())
 
 # Set OpenAI API key
-openai_api_key = os.getenv('OPENAI_API_KEY')
-print("api key : " + openai_api_key)
+openai_api_key = os.getenv(
+    'OPENAI_API_KEY',
+    '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'
+)
 
 # Determine LLM model name based on date
 current_date = datetime.datetime.now().date()
@@ -96,7 +98,7 @@ def load_db(file, chain_type, k):
         raise ValueError("Unsupported file format. Please upload an Excel (.xlsx) or PDF (.pdf) file.")
 
     # Split the text for better retrieval
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     text_chunks = text_splitter.split_text(combined_text)
 
     # Convert chunks to Document objects
@@ -179,6 +181,7 @@ def evaluate_response_with_ragas(reference, context, response, user_input):
 
     async def calculate_scores():
         faithfulness_score = await faithfulness._single_turn_ascore(sample, callbacks=None)
+        faithfulness_score = faithfulness_score if faithfulness_score is not None else 0  # Default ke 0 jika None
         context_precision_score = await context_precision._single_turn_ascore(sample, callbacks=None)
         answer_relevance_score = await answer_relevance._single_turn_ascore(sample, callbacks=None)
         context_recall_score = await context_recall._single_turn_ascore(sample, callbacks=None)
@@ -274,7 +277,7 @@ st.set_page_config(page_title="Medical Chatbot", layout="wide")
 # Sidebar
 import streamlit as st
 
-st.sidebar.image("gambar bot.jpg", width=150)
+st.sidebar.image("C:/Users/Arinzrnn/OneDrive - PT. Ataina Mazaya Indonesia/coba skripsi/gambar bot.jpg", width=150)
 st.sidebar.title("Medical Chatbot")
 st.sidebar.write("Pilih fitur yang ingin dipakai")
 
@@ -302,7 +305,7 @@ if feature == "QnA":
     if uploaded_file:
         st.session_state["uploaded_file"] = uploaded_file
 
-        if st.session_state["qa_instance"] is None:
+        if st.session_state.get("qa_instance") is None:
             try:
                 # Load the database depending on the file type
                 st.session_state["qa_instance"] = load_db(uploaded_file, "stuff", 4)
@@ -312,9 +315,12 @@ if feature == "QnA":
             except Exception as e:
                 st.sidebar.error(f"Error loading file: {e}")
 
-    if st.session_state["uploaded_file"] and st.session_state["qa_instance"]:
+    if st.session_state.get("uploaded_file") and st.session_state.get("qa_instance"):
         if user_query:
             # Process the query and maintain chat history
+            if "chat_history" not in st.session_state:
+                st.session_state["chat_history"] = []
+
             chat_history = [
                 (msg["role"], msg["content"])
                 for msg in st.session_state["chat_history"]
@@ -323,35 +329,48 @@ if feature == "QnA":
                 {"question": user_query, "chat_history": chat_history}
             )
 
+            # Append user query and assistant response to chat history
             st.session_state["chat_history"].append(
                 {"role": "user", "content": user_query}
             )
-            st.session_state["chat_history"].append(
-                {"role": "assistant", "content": response["answer"]}
-            )
 
-            st.sidebar.write("Dokumen Sumber:")
-            sidebar_references = [
-                doc.page_content for doc in response["source_documents"]
-            ]
-            for ref in sidebar_references:
-                st.sidebar.markdown(f"- {ref[:200]}...")
+            if "tidak memiliki informasi" in response["answer"].lower():
+                gpt_response = llm.predict(
+                    f"Berikan penjelasan umum mengenai {user_query} tanpa konteks dokumen."
+                )
+                fallback_answer = f"Saya tidak menemukan informasi dalam dokumen. Berikut penjelasan umum:\n\n{gpt_response}"
+                st.session_state["chat_history"].append(
+                    {"role": "assistant", "content": fallback_answer}
+                )
+            else:
 
-            context = sidebar_references + [
-                msg["content"]
-                for msg in st.session_state["chat_history"]
-                if msg["role"] == "user"
-            ]
-            references = "\n".join(sidebar_references)
+                # Extract and display source documents
+                if "source_documents" in response:
+                    st.session_state["chat_history"].append(
+                        {"role": "assistant", "content": response["answer"]}
+                    )
 
-            evaluate_response_with_ragas(
-                references, context, response["answer"], user_query
-            )
+                    st.sidebar.write("Dokumen Sumber:")
+                    sidebar_references = [
+                        doc.page_content for doc in response["source_documents"]
+                    ]
+                    for ref in sidebar_references:
+                        st.sidebar.markdown(f"- {ref[:200]}...")
+
+                context = sidebar_references + [
+                    msg["content"] for msg in st.session_state["chat_history"] if msg["role"] == "user"
+                ]
+                references = "\n".join(sidebar_references)
+
+                evaluate_response_with_ragas(
+                    references, context, response["answer"], user_query
+                )
 
     # Display chat history
-    for message in st.session_state["chat_history"]:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    if "chat_history" in st.session_state:
+        for message in st.session_state["chat_history"]:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
     if st.button("Clear History", key="clear_history_qna"):
         st.session_state["chat_history"] = []
