@@ -275,7 +275,7 @@ st.set_page_config(page_title="Medical Chatbot", layout="wide")
 # Sidebar
 import streamlit as st
 
-st.sidebar.image("gambar bot.jpg", width=150)
+st.sidebar.image("C:/Users/Arinzrnn/OneDrive - PT. Ataina Mazaya Indonesia/coba skripsi/gambar bot.jpg", width=150)
 st.sidebar.title("Medical Chatbot")
 st.sidebar.write("Pilih fitur yang ingin dipakai")
 
@@ -285,8 +285,8 @@ feature = st.sidebar.selectbox("Pilih fitur:", ["QnA", "Hitung Dosis", "Evaluati
 # Initialize session state
 if "uploaded_file" not in st.session_state:
     st.session_state["uploaded_file"] = None
-if "qa_instance" not in st.session_state:
-    st.session_state["qa_instance"] = None
+if "qa" not in st.session_state:
+    st.session_state["qa"] = None
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 if "evaluation_metrics" not in st.session_state:
@@ -303,31 +303,27 @@ if feature == "QnA":
     if uploaded_file:
         st.session_state["uploaded_file"] = uploaded_file
 
-        if st.session_state.get("qa_instance") is None:
+        if st.session_state.get("qa") is None:
             try:
                 # Load the database depending on the file type
-                st.session_state["qa_instance"] = load_db(uploaded_file, "stuff", 4)
+                st.session_state["qa"] = load_db(uploaded_file, "stuff", 4)
                 st.sidebar.success("Database loaded successfully!")
             except ValueError as e:
                 st.sidebar.error(str(e))
             except Exception as e:
                 st.sidebar.error(f"Error loading file: {e}")
 
-    if st.session_state.get("uploaded_file") and st.session_state.get("qa_instance"):
+    if st.session_state.get("uploaded_file") and st.session_state.get("qa"):
         if user_query:
             # Process the query and maintain chat history
-            if "chat_history" not in st.session_state:
-                st.session_state["chat_history"] = []
-
             chat_history = [
                 (msg["role"], msg["content"])
                 for msg in st.session_state["chat_history"]
             ]
-            response = st.session_state["qa_instance"](
+            response = st.session_state["qa"](
                 {"question": user_query, "chat_history": chat_history}
             )
 
-            # Append user query and assistant response to chat history
             st.session_state["chat_history"].append(
                 {"role": "user", "content": user_query}
             )
@@ -341,13 +337,12 @@ if feature == "QnA":
                     {"role": "assistant", "content": fallback_answer}
                 )
             else:
-
                 # Extract and display source documents
                 if "source_documents" in response:
                     st.session_state["chat_history"].append(
                         {"role": "assistant", "content": response["answer"]}
                     )
-
+                    
                     st.sidebar.write("Dokumen Sumber:")
                     sidebar_references = [
                         doc.page_content for doc in response["source_documents"]
@@ -356,7 +351,9 @@ if feature == "QnA":
                         st.sidebar.markdown(f"- {ref[:200]}...")
 
                 context = sidebar_references + [
-                    msg["content"] for msg in st.session_state["chat_history"] if msg["role"] == "user"
+                    msg["content"]
+                    for msg in st.session_state["chat_history"]
+                    if msg["role"] == "user"
                 ]
                 references = "\n".join(sidebar_references)
 
@@ -374,7 +371,7 @@ if feature == "QnA":
         st.session_state["chat_history"] = []
         st.session_state["evaluation_metrics"] = []
         st.session_state["uploaded_file"] = None
-        st.session_state["qa_instance"] = None
+        st.session_state["qa"] = None
         st.success("Chat history and uploaded file cleared!")
 
 if feature == "Evaluation Metrics":
@@ -384,7 +381,6 @@ if feature == "Evaluation Metrics":
         st.table(metrics_df)
     else:
         st.write("No evaluation metrics available. Ask a question in the QnA section first.")
-
 
 if feature == "Hitung Dosis":
     st.subheader("Fitur Hitung Dosis")
