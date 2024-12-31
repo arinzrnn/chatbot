@@ -38,10 +38,8 @@ import asyncio
 _ = load_dotenv(find_dotenv())
 
 # Set OpenAI API key
-openai_api_key = os.getenv(
-    'OPENAI_API_KEY',
-    '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'
-)
+openai_api_key = os.getenv('OPENAI_API_KEY')
+print("api key : " + openai_api_key)
 
 # Determine LLM model name based on date
 current_date = datetime.datetime.now().date()
