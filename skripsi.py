@@ -39,7 +39,6 @@ _ = load_dotenv(find_dotenv())
 
 # Set OpenAI API key
 openai_api_key = os.getenv('OPENAI_API_KEY')
-print("api key : " + openai_api_key)
 
 # Determine LLM model name based on date
 current_date = datetime.datetime.now().date()
